@@ -152,13 +152,21 @@ static int clk_rcg2_set_parent(struct clk_hw *hw, u8 index)
 	struct clk_rcg2 *rcg = to_clk_rcg2(hw);
 	int ret;
 	u32 cfg = rcg->parent_map[index].cfg << CFG_SRC_SEL_SHIFT;
+	u32 old_cfg;
+
+	/* Read back the old configuration */
+	regmap_read(rcg->clkr.regmap, rcg->cmd_rcgr + CFG_REG,
+		       &old_cfg);
 
 	ret = regmap_update_bits(rcg->clkr.regmap, rcg->cmd_rcgr + CFG_REG,
 				 CFG_SRC_SEL_MASK, cfg);
 	if (ret)
 		return ret;
 
-	return update_config(rcg);
+	ret = update_config(rcg);
+	if (ret)
+		pr_err("%s: %d update_config %u->%u failed (new clock index: %d)\n", __func__, ret, old_cfg, cfg, index);
+	return ret;
 }
 
 static int clk_rcg2_set_force_enable(struct clk_hw *hw)
@@ -458,13 +466,21 @@ static int __clk_rcg2_configure(struct clk_rcg2 *rcg, const struct freq_tbl *f)
 
 static int clk_rcg2_configure(struct clk_rcg2 *rcg, const struct freq_tbl *f)
 {
+	u32 cfg, old_cfg;
 	int ret;
+
+	/* Read back the old configuration */
+	regmap_read(rcg->clkr.regmap, rcg->cmd_rcgr + CFG_REG,
+							&old_cfg);
 
 	ret = __clk_rcg2_configure(rcg, f);
 	if (ret)
 		return ret;
 
-	return update_config(rcg);
+	ret = update_config(rcg);
+	if (ret)
+		pr_err("%s: %d update_config %u->%u failed\n", __func__, ret, old_cfg, cfg);
+	return ret;
 }
 
 static void clk_rcg2_list_registers(struct seq_file *f, struct clk_hw *hw)
@@ -1305,8 +1321,11 @@ static int clk_gfx3d_set_rate_and_parent(struct clk_hw *hw, unsigned long rate,
 		unsigned long parent_rate, u8 index)
 {
 	struct clk_rcg2 *rcg = to_clk_rcg2(hw);
-	u32 cfg;
+	u32 cfg, old_cfg;
 	int ret;
+
+	/* Read back the old configuration */
+	regmap_read(rcg->clkr.regmap, rcg->cmd_rcgr + CFG_REG, &old_cfg);
 
 	/* Just mux it, we don't use the division or m/n hardware */
 	cfg = rcg->parent_map[index].cfg << CFG_SRC_SEL_SHIFT;
@@ -1314,7 +1333,10 @@ static int clk_gfx3d_set_rate_and_parent(struct clk_hw *hw, unsigned long rate,
 	if (ret)
 		return ret;
 
-	return update_config(rcg);
+	ret = update_config(rcg);
+	if (ret)
+		pr_err("%s: %d update_config %u->%u failed (new clock index: %d)\n", __func__, ret, old_cfg, cfg, index);
+	return ret;
 }
 
 static int clk_gfx3d_set_rate(struct clk_hw *hw, unsigned long rate,
@@ -1458,8 +1480,11 @@ static int clk_gfx3d_src_set_rate_and_parent(struct clk_hw *hw,
 {
 	struct clk_rcg2 *rcg = to_clk_rcg2(hw);
 	const struct freq_tbl *f;
-	u32 cfg;
+	u32 cfg, old_cfg;
 	int ret;
+
+	/* Read back the old configuration */
+	regmap_read(rcg->clkr.regmap, rcg->cmd_rcgr + CFG_REG, &old_cfg);
 
 	cfg = rcg->parent_map[index].cfg << CFG_SRC_SEL_SHIFT;
 
@@ -1474,7 +1499,10 @@ static int clk_gfx3d_src_set_rate_and_parent(struct clk_hw *hw,
 	if (ret)
 		return ret;
 
-	return update_config(rcg);
+	ret = update_config(rcg);
+	if (ret)
+		pr_err("%s: %d update_config %u->%u failed (new clock index: %d)\n", __func__, ret, old_cfg, cfg, index);
+	return ret;
 }
 
 const struct clk_ops clk_gfx3d_src_ops = {
